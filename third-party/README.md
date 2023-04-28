@@ -1,0 +1,1 @@
+Any third-party python packages any lib or app package needs to use must be added to the `requirements.txt` here. You can the specify what dependency you need for your package in its own `BUILD.bazel` file.

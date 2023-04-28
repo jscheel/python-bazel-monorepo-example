@@ -1,0 +1,2 @@
+piglatin==">=1.0.6"
+humanize==">=4.6.0"
