@@ -2,7 +2,7 @@ load("@pip_deps//:requirements.bzl", "requirement")
 
 py_library(
     name = "lib1",
-    srcs = glob(["lib1/**/*.py"]),
+    srcs = glob(["**/*.py"]),
     visibility = ["//visibility:public"],
     deps = [
       requirement("piglatin")
