@@ -1,0 +1,72 @@
+# -*- mode: Python -*-
+
+load('ext://restart_process', 'custom_build_with_restart')
+load('../../tools/bazel.Tiltfile', 'bazel_sourcefile_deps', 'extract_apps_libs_directories')
+
+image_target='app:image'
+binary_target='app:binary'
+
+root_name = 'python-bazel'
+app_dir_name = os.path.basename(os.path.realpath('.'))
+print('app_dir_name', app_dir_name)
+bazel_bin = str(local("bazel info bazel-bin")).strip() # gets the real bazel-bin directory, instead of the symlinks
+bazel_out = '../../bazel-out'
+exec_path = str(local("bazel aquery 'mnemonic(\"PyExecutable\", {})' --output=textproto | grep 'exec_path: ' | cut -d '\"' -f 2".format(image_target))).strip()
+runfiles_dir = os.path.join(bazel_bin, exec_path + '/apps/{}/{}.runfiles'.format(app_dir_name, app_dir_name))
+
+binary_target_local = bazel_bin + '/apps/{}/app/binary.runfiles/{}/'.format(app_dir_name, root_name)
+binary_target_container = '/app/apps/{}/image.binary.runfiles/{}/'.format(app_dir_name, root_name)
+# binary_target_container = '/app/apps/{}/image.binary.runfiles/{}/apps/{}/'.format(app_dir_name, root_name, app_dir_name)
+print('binary_target_container')
+print(binary_target_container)
+binary_target_local_relative = os.path.relpath(binary_target_local, os.getcwd())
+print('binary_target_local_relative', binary_target_local_relative)
+
+# Where go_image puts the image in Docker (bazel/path/to/target:name)
+bazel_repository='bazel/apps/{}/app'.format(app_dir_name)
+bazel_tag = 'image'
+bazel_image="{}:{}".format(bazel_repository, bazel_tag)
+
+yaml = helm(
+  # './chart',
+  '../../../charts/groove-text-refiner',
+  name="groove-text-refiner",
+  # values=['./chart/values.development.yaml'],
+  values=['../../../charts/groove-text-refiner/values.development.yaml'],
+  set=['image.repository={}'.format(bazel_repository), 'image.tag={}'.format(bazel_tag)] # overrides the repo set in the chart
+)
+
+k8s_yaml(yaml)
+
+sourcefile_deps = bazel_sourcefile_deps(binary_target)
+
+local_resource(
+  name='compile',
+  cmd='bazel build {binary_target}'.format(binary_target=binary_target),
+  deps=sourcefile_deps
+)
+
+deps = []
+live_update = []
+
+for dep_dir in extract_apps_libs_directories(sourcefile_deps):
+  local_dir = '../..{}'.format(dep_dir)
+  deps.append(local_dir)
+  live_update.append(sync(local_dir, "/app/apps/{}/app/image.binary.runfiles/python-bazel/{}".format(app_dir_name, dep_dir)))
+
+# TODO (jscheel): NEED TO FIGURE OUT A WAY TO JUST GET THE PATHS
+
+custom_build_with_restart(
+  bazel_image,
+  command=(
+    'bazel run {image_target} -- --norun && ' +
+    'docker tag {bazel_image} $EXPECTED_REF').format(image_target=image_target, bazel_image=bazel_image),
+  entrypoint=[
+                "/usr/bin/python",
+                "/app/apps/{}/app/image.binary".format(app_dir_name)
+            ],
+  deps=deps,
+  live_update=live_update
+)
+
+k8s_resource('groove-text-refiner', port_forwards='5000:5000', resource_deps=['compile'])

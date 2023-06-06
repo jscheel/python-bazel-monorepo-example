@@ -1,0 +1,6 @@
+apiVersion: v2
+appVersion: 1.16.0
+description: Helm chart for the Groove text-refiner container
+name: groove-text-refiner
+type: application
+version: 0.0.1

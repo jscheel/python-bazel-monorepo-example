@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "groove-text-refiner.fullname" . }}
+  labels:
+    {{ include "groove-text-refiner.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{ include "groove-text-refiner.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: enabled
+      labels:
+        {{ include "groove-text-refiner.selectorLabels" . | nindent 8 }}
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ include "groove-text-refiner.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: grpc-server
+              containerPort: 5000
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          {{- with .Values.probes }}
+          {{- if .readiness }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            {{- toYaml .readiness | nindent 12 }}
+          {{- end }}
+          {{- if .startup }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            {{- toYaml .startup | nindent 12 }}
+          {{- end }}
+          {{- if .liveness }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            {{- toYaml .liveness | nindent 12 }}
+          {{- end }}
+          {{- end }}
+
+          volumeMounts:
+            - mountPath: "/secrets/.env"
+              subPath: ".env"
+              name: {{ include "groove-text-refiner.name" . }}-secrets-volume
+              readOnly: true
+
+          # {{- if ne .Values.environment "development" }}
+          # lifecycle:
+          #   postStart:
+          #     exec:
+          #       command: ["/bin/sh", "-c", "ln -s -f /secrets/.env /python-monorepo/stack/text-refiner/.env"]
+          # {{- end }}
+
+          env:
+            - name: CONTAINER_ROLE
+              value: server
+            - name: PYTHON_ENV
+              value: {{ .Values.environment }}
+            - name: PYTHONBREAKPOINT
+              value: IPython.core.debugger.set_trace
+            - name: IPYTHONDIR
+              value: /ipython
+            # OPENAI_API_KEY needs to be defined as an environment variable
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openai-api-key-config
+                  key: OPENAI_API_KEY
+
+
+      volumes:
+        - name: {{ include "groove-text-refiner.name" . }}-secrets-volume
+          secret:
+            secretName: groove-secrets-text-refiner-config
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

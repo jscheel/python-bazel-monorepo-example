@@ -1,0 +1,62 @@
+# Default values for groove-text-refiner.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+environment: development
+
+image:
+  repository: groovehq/text-refiner
+  tag: dev
+  pullPolicy: Never
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: false
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name:
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    memory: 200Mi
+    cpu: 0.1
+  limits:
+    cpu: 1
+    memory: 500Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Disabled for development
+# probes:
+#   readiness:
+#     initialDelaySeconds: 5
+#     timeoutSeconds: 10
+#     periodSeconds: 13
+#   startup:
+#     timeoutSeconds: 5
+#     periodSeconds: 10
+#     failureThreshold: 20
+#   liveness:
+#     initialDelaySeconds: 15
+#     timeoutSeconds: 5
+#     periodSeconds: 20
